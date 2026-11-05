@@ -1,7 +1,7 @@
 import * as maplibregl from "../vendor/maplibre/maplibre-gl.mjs";
 import { formatLat, formatLng, subsolarPoint } from "./solar.js";
 import { buildTerminator } from "./terminator.js";
-import { greatCircle } from "./route.js";
+import { greatCircle, initialCourse } from "./route.js";
 
 const PREF_KEY = "globemap-v1";
 const REFRESH_MS = 60_000;
@@ -729,10 +729,136 @@ function bindPlanner() {
   $("plan-clear").addEventListener("click", clearRoute);
   const qs = new URLSearchParams(location.search);
   const via = qs.get("via") || (qs.get("from") && qs.get("to") ? `${qs.get("from")},${qs.get("to")}` : "");
-  if (via) {
-    for (const c of via.toUpperCase().split(/[,\s-]+/).filter(Boolean)) addWaypoint(c, 0, true);
+  let restore = via;
+  if (!restore) { try { restore = (JSON.parse(localStorage.getItem(CURRENT_KEY) || "null") || {}).icaos?.join(",") || ""; } catch { restore = ""; } }
+  if (restore) {
+    for (const c of restore.toUpperCase().split(/[,\s-]+/).filter(Boolean)) addWaypoint(c, 0, true);
     renderRoute(0);
   } else renderRoute();
+  state.plansReady = true;
+  persistCurrent(state.route);
+  bindPlans();
+}
+
+/* ---------- Saved plans, navlog, schematic ---------- */
+const PLANS_KEY = "globemap.plans.v1";     // [{id,name,icaos,created,updated,totalNm}]
+const CURRENT_KEY = "globemap.current.v1"; // {icaos,updated} — in-progress route
+
+function readPlans() {
+  try { const a = JSON.parse(localStorage.getItem(PLANS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+function writePlans(list) {
+  try { localStorage.setItem(PLANS_KEY, JSON.stringify(list)); return true; }
+  catch { saveMsg("Could not save (browser storage full or blocked).", true); return false; }
+}
+function saveMsg(t, err) { const m = $("plan-save-msg"); m.textContent = t; m.classList.toggle("error", !!err); }
+
+function bindPlans() {
+  $("plan-save").addEventListener("click", () => {
+    const icaos = state.route.map((p) => p.code);
+    if (icaos.length < 2) { saveMsg("Add at least two airports before saving.", true); return; }
+    const name = $("plan-name").value.trim() || icaos.join("-");
+    const list = readPlans();
+    const now = new Date().toISOString();
+    const same = list.find((p) => p.name === name);
+    if (same && !confirm(`Overwrite saved plan "${name}"?`)) return;
+    const entry = { id: same ? same.id : `p${Date.now().toString(36)}`, name, icaos, created: same ? same.created : now, updated: now, totalNm: Number(document.body.dataset.routeNm) };
+    if (same) Object.assign(same, entry); else list.unshift(entry);
+    if (writePlans(list)) { saveMsg(`Saved "${name}".`); $("plan-name").value = ""; renderSaved(); $("saved-wrap").open = true; }
+  });
+  $("saved-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const list = readPlans();
+    const plan = list.find((p) => p.id === btn.dataset.id);
+    if (!plan) return;
+    if (btn.dataset.act === "load") {
+      state.route = [];
+      const missing = [];
+      for (const c of plan.icaos) if (!state.airports.get(c)) missing.push(c); else addWaypoint(c, 0, true);
+      renderRoute();
+      $("plan-name").value = plan.name;
+      saveMsg(missing.length ? `Loaded "${plan.name}" — not found: ${missing.join(", ")}.` : `Loaded "${plan.name}".`, missing.length > 0);
+    } else if (btn.dataset.act === "overwrite") {
+      const icaos = state.route.map((p) => p.code);
+      if (icaos.length < 2) { saveMsg("Current route is empty — nothing to overwrite with.", true); return; }
+      if (!confirm(`Replace "${plan.name}" (${plan.icaos.join("-")}) with ${icaos.join("-")}?`)) return;
+      Object.assign(plan, { icaos, updated: new Date().toISOString(), totalNm: Number(document.body.dataset.routeNm) });
+      if (writePlans(list)) { saveMsg(`Overwrote "${plan.name}".`); renderSaved(); }
+    } else if (btn.dataset.act === "delete") {
+      if (!confirm(`Delete saved plan "${plan.name}"?`)) return;
+      if (writePlans(list.filter((p) => p.id !== plan.id))) { saveMsg(`Deleted "${plan.name}".`); renderSaved(); }
+    }
+  });
+  $("plan-print").addEventListener("click", printNavlog);
+  window.addEventListener("afterprint", () => { $("print-sheet").innerHTML = ""; });
+  renderSaved();
+}
+
+function renderSaved() {
+  const list = readPlans();
+  $("saved-count").textContent = `(${list.length})`;
+  $("saved-list").innerHTML = list.length ? list.map((p) => `<li><div class="sp-name">${esc(p.name)}</div>
+    <div class="sp-meta">${esc(p.icaos.join(" → "))}${Number.isFinite(p.totalNm) ? ` · ${p.totalNm.toLocaleString()} NM` : ""} · ${esc(new Date(p.updated).toLocaleDateString())}</div>
+    <div class="sp-btns"><button type="button" data-act="load" data-id="${esc(p.id)}">Load</button><button type="button" data-act="overwrite" data-id="${esc(p.id)}">Overwrite</button><button type="button" data-act="delete" data-id="${esc(p.id)}" class="danger">Delete</button></div></li>`).join("")
+    : `<li class="sp-empty">No saved plans yet.</li>`;
+}
+
+function persistCurrent(pts) {
+  try {
+    if (pts.length) localStorage.setItem(CURRENT_KEY, JSON.stringify({ icaos: pts.map((p) => p.code), updated: new Date().toISOString() }));
+    else localStorage.removeItem(CURRENT_KEY);
+  } catch { /* storage unavailable */ }
+  try {
+    const url = new URL(location.href);
+    url.searchParams.delete("from"); url.searchParams.delete("to");
+    if (pts.length) url.searchParams.set("via", pts.map((p) => p.code).join(",")); else url.searchParams.delete("via");
+    history.replaceState(history.state, "", url.pathname + (url.search ? url.search.replace(/%2C/g, ",") : "") + url.hash);
+  } catch { /* ignore */ }
+}
+
+function navlogHtml(pts, legs) {
+  if (legs.length === 0) return `<p class="nl-empty">Add two or more airports to see the navlog.</p>`;
+  const total = legs.reduce((s, l) => s + l.m, 0);
+  let cum = 0;
+  const rows = legs.map((l, i) => {
+    cum += l.m;
+    return `<tr><td>${i + 1}</td><td><b>${esc(l.a.code)}</b><small>${esc(l.a.name || "")}</small></td><td><b>${esc(l.b.code)}</b><small>${esc(l.b.name || "")}</small></td>
+      <td class="num">${String(l.crs).padStart(3, "0")}°T</td><td class="num">${l.nm.toLocaleString()}</td><td class="num">${Math.round(cum / 1852).toLocaleString()}</td><td class="num">${Math.round((total - cum) / 1852).toLocaleString()}</td></tr>`;
+  }).join("");
+  return `<table class="navlog"><thead><tr><th>Leg</th><th>From</th><th>To</th><th class="num">Crs</th><th class="num">NM</th><th class="num">Cum</th><th class="num">Rem</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td colspan="4">Total · ${legs.length} leg${legs.length > 1 ? "s" : ""}</td><td class="num">${Math.round(total / 1852).toLocaleString()}</td><td colspan="2"></td></tr></tfoot></table>
+    <p class="nl-note">Course = initial great-circle true course. Great-circle distance, not airways. Sim use only.</p>`;
+}
+
+/* Schematic: airports evenly spaced in a vertical strip, each leg labelled with course and NM. */
+function schematicSvg(pts, legs) {
+  if (legs.length === 0) return "";
+  const step = 56, w = 300, x = 36, top = 20, h = top * 2 + step * (pts.length - 1);
+  let g = "";
+  legs.forEach((l, i) => {
+    const y1 = top + i * step, y2 = y1 + step;
+    g += `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" class="sc-leg"/>`;
+    g += `<text x="${x + 18}" y="${(y1 + y2) / 2 + 4}" class="sc-lab">Leg ${i + 1} · ${String(l.crs).padStart(3, "0")}°T · ${l.nm.toLocaleString()} NM</text>`;
+    // arrow showing course direction
+    const r = (l.crs * Math.PI) / 180, cx = x, cy = (y1 + y2) / 2;
+    g += `<g transform="translate(${cx},${cy}) rotate(${l.crs})"><path d="M0,-7 L4,4 L0,2 L-4,4 Z" class="sc-arrow"/></g>`;
+    void r;
+  });
+  pts.forEach((p, i) => {
+    const y = top + i * step;
+    g += `<circle cx="${x}" cy="${y}" r="6" class="sc-pt${i === 0 || i === pts.length - 1 ? " sc-end" : ""}"/>`;
+    g += `<text x="${x + 14}" y="${y + 4}" class="sc-code">${esc(p.code)}</text>`;
+    g += `<text x="${x + 58}" y="${y + 4}" class="sc-name">${esc((p.name || "").slice(0, 30))}</text>`;
+  });
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Schematic of ${esc(pts.map((p) => p.code).join(" to "))}">${g}</svg>`;
+}
+
+function printNavlog() {
+  if (state.route.length < 2) { saveMsg("Add at least two airports to print a navlog.", true); return; }
+  const title = $("plan-name").value.trim() || state.route.map((p) => p.code).join("-");
+  $("print-sheet").innerHTML = `<h1>GlobeMap navlog — ${esc(title)}</h1><p>Printed ${esc(new Date().toUTCString())}</p>${$("navlog").innerHTML}<div class="print-sc">${$("schematic").innerHTML}</div>`;
+  window.print();
 }
 
 function planOut(html, isError) {
@@ -775,7 +901,7 @@ function renderRoute(duration) {
     }
     all = all.concat(coords);
     features.push(lineFeature(coords, { kind: "route", leg: i }));
-    legs.push({ a, b, nm: Math.round(gc.meters / 1852), m: gc.meters });
+    legs.push({ a, b, nm: Math.round(gc.meters / 1852), m: gc.meters, crs: Math.round(initialCourse([a.lng, a.lat], [b.lng, b.lat])) % 360 });
   }
   pts.forEach((p, i) => features.push({ type: "Feature", properties: { label: p.code, idx: i },
     geometry: { type: "Point", coordinates: [p.lng, p.lat] } }));
@@ -794,6 +920,9 @@ function renderRoute(duration) {
   document.body.dataset.route = pts.map((p) => p.code).join("-");
   document.body.dataset.routeNm = String(totalNm);
   document.body.dataset.legsNm = legs.map((l) => l.nm).join(",");
+  $("navlog").innerHTML = navlogHtml(pts, legs);
+  $("schematic").innerHTML = schematicSvg(pts, legs);
+  if (state.plansReady) persistCurrent(pts);
   if (duration !== null && all.length) fitRoute(all, duration);
   else if (duration !== null && pts.length === 1 && duration === 0) fitRoute([[pts[0].lng, pts[0].lat]], 0);
 }

@@ -33,3 +33,12 @@ export function greatCircle(from, to, maxStepKm = 50) {
   }
   return { meters, coordinates: coords };
 }
+
+/* Initial great-circle true course from `from` to `to` ([lng, lat]), 0–359.999°. */
+export function initialCourse(from, to) {
+  const [l1, p1] = from.map(rad);
+  const [l2, p2] = to.map(rad);
+  const y = Math.sin(l2 - l1) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(l2 - l1);
+  return (deg(Math.atan2(y, x)) + 360) % 360;
+}
