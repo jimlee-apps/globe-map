@@ -1,0 +1,14 @@
+Natural Earth vector data
+1:50,000,000 admin-0 countries with lakes (ne_50m_admin_0_countries_lakes.geojson)
+
+Source: https://www.naturalearthdata.com/
+Repository: https://github.com/nvkelso/natural-earth-vector
+
+License: Public domain.
+Natural Earth is free for use in any type of project. The project asks users
+to credit "Natural Earth" or "Made with Natural Earth". There is no
+requirement to share derivatives.
+
+GlobeMap keeps the country name and continent, and rounds coordinates to
+3 decimal places for a smaller static file. Lakes are already cut out of
+this Natural Earth extract, so the ocean color shows through.

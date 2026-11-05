@@ -1,0 +1,13 @@
+OurAirports airport data
+Source page: https://ourairports.com/data/
+File: airports.csv (nightly dump), downloaded 2026-11-05
+Mirror used: https://davidmegginson.github.io/ourairports-data/airports.csv
+
+License: Public domain.
+OurAirports states: "All data is released to the Public Domain, and comes
+with no guarantee of accuracy or fitness for use." Credit is requested,
+not required.
+
+GlobeMap includes large and medium airports that have a 4-letter ICAO code
+(icao_code, gps_code, or ident). Other fields are dropped. Not for
+real-world navigation.
