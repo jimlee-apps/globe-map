@@ -1,0 +1,17 @@
+GlobeMap v1 — static folder
+
+From this directory:
+
+    python3 serve.py
+
+Then open http://127.0.0.1:47321/
+
+Any other static server works if it serves .mjs as JavaScript and
+.webmanifest as a manifest (or if the browser is lenient). Do not open
+index.html via file:// — the globe worker will not start.
+
+iPad: Safari → Share → Add to Home Screen.
+Mac: Safari → File → Add to Dock (Sonoma or later).
+
+Upload this whole folder as-is. Paths are relative. .nojekyll is at the
+root so a future GitHub Pages upload does not drop files.

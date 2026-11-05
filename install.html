@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Add GlobeMap</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#061018">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GlobeMap">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main class="page">
+    <div class="page-wrap">
+      <p class="tag">GlobeMap</p>
+      <h1>Add to Home Screen or Dock</h1>
+      <p class="lede">Personal static app. Serve the folder over HTTP on your Mac, then install it from Safari. No App Store, no developer account, no re-sign.</p>
+      <div class="icon-row">
+        <figure>
+          <img src="icons/apple-touch-icon.png" width="180" height="180" alt="Apple touch icon, 180 pixels">
+          <figcaption>180 · iPad / Mac</figcaption>
+        </figure>
+        <figure>
+          <img src="icons/icon-192.png" width="192" height="192" alt="Icon, 192 pixels">
+          <figcaption>192</figcaption>
+        </figure>
+        <figure>
+          <img src="icons/icon-512.png" width="512" height="512" alt="Icon, 512 pixels">
+          <figcaption>512</figcaption>
+        </figure>
+        <figure>
+          <img src="icons/icon-512-maskable.png" width="512" height="512" alt="Maskable icon, 512 pixels">
+          <figcaption>512 maskable</figcaption>
+        </figure>
+      </div>
+      <h2>iPad</h2>
+      <ol class="steps">
+        <li>Open this site in Safari (a local address or the Pages URL you uploaded).</li>
+        <li>Tap Share, then <strong>Add to Home Screen</strong>.</li>
+        <li>Name it GlobeMap. It opens full screen, with its own storage, separate from Safari tabs.</li>
+      </ol>
+      <h2>Mac</h2>
+      <ol class="steps">
+        <li>Open this site in Safari on macOS Sonoma or later.</li>
+        <li>Choose File → <strong>Add to Dock</strong>.</li>
+        <li>GlobeMap is saved under Applications and keeps its own cookies and cache.</li>
+      </ol>
+      <p>Open <a href="index.html">the globe</a> from an <code>http://</code> address. A <code>file://</code> window will not start the map worker.</p>
+      <h2>Manifest</h2>
+      <p>Linked as <a href="manifest.webmanifest">manifest.webmanifest</a>. Safari and Chromium read this for the installed name, start URL, and icons.</p>
+      <pre id="manifest-dump">Loading manifest…</pre>
+      <p><a href="index.html">Back to the globe</a></p>
+    </div>
+  </main>
+  <script>
+    fetch("manifest.webmanifest")
+      .then((response) => response.json())
+      .then((manifest) => {
+        document.getElementById("manifest-dump").textContent = JSON.stringify(manifest, null, 2);
+      })
+      .catch((error) => {
+        document.getElementById("manifest-dump").textContent = "Could not read the manifest: " + error;
+      });
+  </script>
+</body>
+</html>

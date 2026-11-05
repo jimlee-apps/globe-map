@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>GlobeMap</title>
+  <meta name="description" content="Personal flight-sim globe with FIR boundaries, ICAO labels, and the day-night terminator.">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#061018">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GlobeMap">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="map" role="application" aria-label="GlobeMap globe"></div>
+
+  <section id="panel" aria-label="GlobeMap controls">
+    <header class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <h1>GlobeMap</h1>
+        <p class="tag">Personal sim reference</p>
+      </div>
+      <button id="collapse" type="button" aria-expanded="true" aria-controls="panel-body">Hide</button>
+    </header>
+    <div id="panel-body">
+      <form id="search-form" class="search" role="search">
+        <label class="sr" for="q">Search ICAO, airport, or FIR</label>
+        <input id="q" name="q" autocomplete="off" enterkeyhint="search" placeholder="EGLL, Heathrow, EGTT…" spellcheck="false">
+        <ul id="results" role="listbox" hidden></ul>
+      </form>
+      <div class="toggles">
+        <label><input type="checkbox" id="tog-fir" checked> FIR boundaries</label>
+        <label><input type="checkbox" id="tog-labels" checked> ICAO labels</label>
+        <label><input type="checkbox" id="tog-airports" checked> Airports</label>
+        <label><input type="checkbox" id="tog-night" checked> Night shading</label>
+        <label><input type="checkbox" id="tog-grid" checked> Graticule</label>
+      </div>
+      <ul class="legend">
+        <li><i class="swatch fir" aria-hidden="true"></i> FIR</li>
+        <li><i class="swatch oceanic" aria-hidden="true"></i> Oceanic</li>
+        <li><i class="swatch apt" aria-hidden="true"></i> Airport</li>
+        <li><i class="swatch night" aria-hidden="true"></i> Terminator</li>
+      </ul>
+      <div class="meta">
+        <div id="clock">UTC —</div>
+        <div id="sun">Sun —</div>
+        <div id="counts">Loading data…</div>
+        <div>Night shading refreshes every 60 seconds.</div>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-terminator">Center on terminator</button>
+        <a href="install.html">Add to Home Screen</a>
+        <button type="button" id="btn-credits">Credits</button>
+      </div>
+    </div>
+  </section>
+
+  <footer id="credit">
+    FIR boundaries © VATSIM / VAT-Spy Data Project,
+    <a href="licenses/cc-by-sa-4.0.txt">CC BY-SA 4.0</a>
+    — adapted from AIRAC 2611. Sim airspace, not for real-world navigation.
+    Airports: OurAirports (public domain).
+    Land: Natural Earth (public domain).
+    MapLibre GL JS.
+  </footer>
+
+  <div id="loading" role="status">
+    <div class="loading-card">
+      <h2>GlobeMap</h2>
+      <p id="loading-text">Loading the globe, FIR boundaries, and airports…</p>
+    </div>
+  </div>
+
+  <noscript>
+    <p class="noscript">GlobeMap needs JavaScript to draw the globe. Serve this folder over HTTP, then reload.</p>
+  </noscript>
+
+  <dialog id="credits">
+    <h2>Credits and licences</h2>
+    <ul>
+      <li>FIR/UIR boundaries © VATSIM / VAT-Spy Data Project, <a href="licenses/cc-by-sa-4.0.txt">CC BY-SA 4.0</a>. Adapted from Boundaries.geojson AIRAC 2611 (release v2611.2); names joined from VATSpy.dat. Simulation airspace only.</li>
+      <li>Airports © OurAirports, public domain. Credit requested. Large and medium airports that have a 4-letter ICAO code. <a href="licenses/ourairports.txt">Notice</a>.</li>
+      <li>Land polygons © Natural Earth (1:50m), public domain. <a href="licenses/natural-earth.txt">Notice</a>.</li>
+      <li>Map rendering by MapLibre GL JS 6.16.0, BSD-3-Clause. <a href="licenses/maplibre-bsd-3-clause.txt">Licence</a>.</li>
+      <li>ICAO labels set with Open Sans glyphs (SIL OFL 1.1). <a href="licenses/open-sans-ofl.txt">Licence</a>.</li>
+    </ul>
+    <p>Personal use. Not for sale. No account, no API key, no Mapbox.</p>
+    <menu>
+      <button type="button" id="credits-close" class="text-btn">Close</button>
+    </menu>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
