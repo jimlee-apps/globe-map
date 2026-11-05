@@ -10,7 +10,8 @@ fir.geojson, fir-labels.geojson
   Full licence: ../licenses/cc-by-sa-4.0.txt
 
 land.geojson
-  Natural Earth 1:50m admin-0 countries with lakes. Public domain.
+  Natural Earth 1:10m admin-0 countries with lakes. Public domain.
+  Coordinates rounded to 4 decimals; lightly simplified for file size.
   ../licenses/natural-earth.txt
 
 airports.geojson
