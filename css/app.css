@@ -416,3 +416,11 @@ dialog menu { margin: 12px 0 0; padding: 0; text-align: right; }
 #plan-out.error { color: var(--danger); }
 #plan-clear { margin-top: 4px; }
 #plan-clear[hidden] { display: none; }
+
+.plan-click { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+#plan-undo:disabled { opacity: .4; }
+#plan-out .chain { color: #fff; font-weight: 700; word-break: break-word; }
+#plan-out .legs { margin: 4px 0; padding: 0; list-style: none; max-height: 30vh; overflow: auto; }
+#plan-out .legs li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.08); padding: 2px 0; }
+#plan-out .legs b { color: var(--cyan); font-variant-numeric: tabular-nums; }
+#plan-out .total { margin-top: 2px; }
