@@ -1,6 +1,7 @@
 import * as maplibregl from "../vendor/maplibre/maplibre-gl.mjs";
 import { formatLat, formatLng, subsolarPoint } from "./solar.js";
 import { buildTerminator } from "./terminator.js";
+import { greatCircle } from "./route.js";
 
 const PREF_KEY = "globemap-v1";
 const REFRESH_MS = 60_000;
@@ -19,6 +20,7 @@ const layers = {
 const state = {
   map: null,
   index: [],
+  airports: new Map(),
   timer: 0,
   clockTimer: 0,
 };
@@ -101,6 +103,8 @@ async function boot() {
       document.body.dataset.airports = String(airports.features.length);
       applyVisibility();
       bindMapClicks(map);
+      addRouteLayers(map);
+      bindPlanner();
       state.timer = window.setInterval(() => refreshTerminator(map), REFRESH_MS);
       map.once("idle", () => {
         document.body.dataset.projection = (map.getProjection() && map.getProjection().type) || "";
@@ -439,6 +443,7 @@ function buildIndex(labels, airports) {
   for (const feature of airports.features) {
     const props = feature.properties;
     const [lng, lat] = feature.geometry.coordinates;
+    state.airports.set(String(props.icao).toUpperCase(), { code: props.icao, name: props.name, lng, lat });
     index.push({
       code: props.icao,
       name: props.name,
@@ -681,4 +686,102 @@ function esc(value) {
     '"': "&quot;",
     "'": "&#39;",
   }[char]));
+}
+
+/* ---------- From/To planner ---------- */
+function addRouteLayers(map) {
+  map.addSource("route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({ id: "route-casing", type: "line", source: "route", filter: ["==", ["geometry-type"], "LineString"],
+    layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#03070c", "line-width": 6, "line-opacity": 0.7 } });
+  map.addLayer({ id: "route-line", type: "line", source: "route", filter: ["==", ["geometry-type"], "LineString"],
+    layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#ff4fd8", "line-width": 3 } });
+  map.addLayer({ id: "route-ends", type: "circle", source: "route", filter: ["==", ["geometry-type"], "Point"],
+    paint: { "circle-radius": 7, "circle-color": "#ff4fd8", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } });
+  map.addLayer({ id: "route-labels", type: "symbol", source: "route", filter: ["==", ["geometry-type"], "Point"],
+    layout: { "text-field": ["get", "label"], "text-font": ["OpenSansBold"], "text-size": 14, "text-offset": [0, -1.3],
+      "text-anchor": "bottom", "text-allow-overlap": true, "text-ignore-placement": true },
+    paint: { "text-color": "#ffffff", "text-halo-color": "#03070c", "text-halo-width": 2 } });
+}
+
+function bindPlanner() {
+  for (const id of ["plan-from", "plan-to"]) {
+    $(id).addEventListener("input", (e) => {
+      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      e.target.removeAttribute("aria-invalid");
+    });
+  }
+  $("plan-swap").addEventListener("click", () => {
+    const a = $("plan-from").value;
+    $("plan-from").value = $("plan-to").value;
+    $("plan-to").value = a;
+  });
+  $("plan-form").addEventListener("submit", (e) => { e.preventDefault(); planRoute(); });
+  $("plan-clear").addEventListener("click", clearRoute);
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("from") && qs.get("to")) {
+    $("plan-from").value = qs.get("from").toUpperCase();
+    $("plan-to").value = qs.get("to").toUpperCase();
+    planRoute(0);
+  }
+}
+
+function planOut(html, isError) {
+  const out = $("plan-out");
+  out.innerHTML = html;
+  out.classList.toggle("error", !!isError);
+}
+
+function planRoute(duration) {
+  const codes = ["plan-from", "plan-to"].map((id) => $(id).value.trim().toUpperCase());
+  const ends = codes.map((c) => state.airports.get(c));
+  const bad = [];
+  ["plan-from", "plan-to"].forEach((id, i) => {
+    const miss = !ends[i];
+    $(id).setAttribute("aria-invalid", miss ? "true" : "false");
+    if (miss) bad.push(codes[i] ? `${codes[i]} not found` : `${i ? "To" : "From"} is empty`);
+  });
+  if (bad.length) {
+    planOut(`${esc(bad.join(" · "))}. Use a 4-letter ICAO code from the airport list.`, true);
+    document.body.dataset.route = "error";
+    return;
+  }
+  if (codes[0] === codes[1]) {
+    planOut("From and To are the same airport.", true);
+    document.body.dataset.route = "error";
+    return;
+  }
+  const [a, b] = ends;
+  const gc = greatCircle([a.lng, a.lat], [b.lng, b.lat]);
+  const nm = Math.round(gc.meters / 1852);
+  state.map.getSource("route").setData({ type: "FeatureCollection", features: [
+    lineFeature(gc.coordinates, { kind: "route" }),
+    { type: "Feature", properties: { label: a.code }, geometry: { type: "Point", coordinates: [a.lng, a.lat] } },
+    { type: "Feature", properties: { label: b.code }, geometry: { type: "Point", coordinates: [b.lng, b.lat] } },
+  ] });
+  planOut(`${esc(a.code)} → ${esc(b.code)} &nbsp;<strong>${nm.toLocaleString()} NM</strong><br>${esc(a.name)} → ${esc(b.name)}<br>Great circle`);
+  $("plan-clear").hidden = false;
+  document.body.dataset.route = `${a.code}-${b.code}`;
+  document.body.dataset.routeNm = String(nm);
+  fitRoute(gc.coordinates, duration);
+}
+
+function fitRoute(coords, duration) {
+  // Coordinates are unwrapped (continuous longitude), so a simple min/max box
+  // is correct even across the antimeridian.
+  let w = Infinity, e = -Infinity, s = Infinity, n = -Infinity;
+  for (const [x, y] of coords) { w = Math.min(w, x); e = Math.max(e, x); s = Math.min(s, y); n = Math.max(n, y); }
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1400;
+  const cam = state.map.cameraForBounds([[w, s], [e, n]], { padding: 60, maxZoom: 6 });
+  if (!cam) return;
+  let lng = cam.center.lng;
+  lng = ((lng + 540) % 360) - 180;
+  state.map.flyTo({ center: [lng, cam.center.lat], zoom: Math.max(1, cam.zoom), bearing: 0, pitch: 0,
+    duration: duration === undefined ? motion : duration, essential: true });
+}
+
+function clearRoute() {
+  state.map.getSource("route").setData({ type: "FeatureCollection", features: [] });
+  planOut("");
+  $("plan-clear").hidden = true;
+  delete document.body.dataset.route;
 }
