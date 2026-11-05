@@ -17,4 +17,7 @@ land.geojson
 airports.geojson
   OurAirports airports.csv, large and medium airports with a 4-letter ICAO code.
   Public domain. Credit requested.
+  Extra personal addition 2026-11-05: AT98 Wolf's Fang Runway
+  (OurAirports ident AQ-0011, keywords AT98; 71.545026S 8.798389E, elev 3707 ft).
+  AT98 is a commonly used identifier, not an official ICAO code.
   ../licenses/ourairports.txt
