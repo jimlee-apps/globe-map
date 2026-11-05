@@ -1,0 +1,19 @@
+GlobeMap v1 data, built 2026-11-05. Personal use. Not for navigation.
+
+fir.geojson, fir-labels.geojson
+  VAT-Spy Data Project release v2611.2 (AIRAC 2611)
+  https://github.com/vatsimnetwork/vatspy-data-project/releases/tag/v2611.2
+  License: CC BY-SA 4.0. Credit VATSIM / VAT-Spy Data Project.
+  Adapted: names joined from VATSpy.dat [FIRs]; coordinates rounded to 5 decimals.
+  This is VATSIM simulation airspace, not authoritative real-world airspace.
+  Share-alike: these GeoJSON files stay under CC BY-SA 4.0.
+  Full licence: ../licenses/cc-by-sa-4.0.txt
+
+land.geojson
+  Natural Earth 1:50m admin-0 countries with lakes. Public domain.
+  ../licenses/natural-earth.txt
+
+airports.geojson
+  OurAirports airports.csv, large and medium airports with a 4-letter ICAO code.
+  Public domain. Credit requested.
+  ../licenses/ourairports.txt
