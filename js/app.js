@@ -351,7 +351,7 @@ function addAirports(map, airports) {
     id: "airport-dots-large",
     type: "circle",
     source: "airports",
-    filter: ["==", ["get", "type"], "large_airport"],
+    filter: ["any", ["==", ["get", "type"], "large_airport"], ["==", ["get", "icao"], "AT98"]],
     minzoom: 1.5,
     paint: {
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 1.5, 2.4, 4, 4, 7, 5.5],
@@ -384,7 +384,7 @@ function addAirports(map, airports) {
     id: "airport-labels-large",
     type: "symbol",
     source: "airports",
-    filter: ["==", ["get", "type"], "large_airport"],
+    filter: ["any", ["==", ["get", "type"], "large_airport"], ["==", ["get", "icao"], "AT98"]],
     minzoom: 2.3,
     layout: { ...layout, "text-field": ["get", "icao"], "text-size": 12, "symbol-sort-key": 1 },
     paint: {
