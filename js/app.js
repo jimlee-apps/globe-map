@@ -719,8 +719,6 @@ function addRouteLayers(map) {
     paint: { "text-color": "#ffffff", "text-halo-color": "#03070c", "text-halo-width": 2 } });
 }
 
-const MAX_WP = 12;
-
 function bindPlanner() {
   state.route = [];
   $("plan-add").addEventListener("input", (e) => {
@@ -760,7 +758,6 @@ function addWaypoint(code, duration, quiet) {
   delete document.body.dataset.routeError;
   const last = state.route[state.route.length - 1];
   if (last && last.code === apt.code) { if (!quiet) renderRoute(null); return false; }
-  if (state.route.length >= MAX_WP) { planOut(`Route is limited to ${MAX_WP} airports.`, true); return false; }
   state.route.push(apt);
   if (!quiet) renderRoute(duration);
   return true;
