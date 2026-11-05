@@ -424,3 +424,53 @@ dialog menu { margin: 12px 0 0; padding: 0; text-align: right; }
 #plan-out .legs li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.08); padding: 2px 0; }
 #plan-out .legs b { color: var(--cyan); font-variant-numeric: tabular-nums; }
 #plan-out .total { margin-top: 2px; }
+
+/* ---------- Saved plans, navlog, schematic ---------- */
+.plans { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); }
+#plan-save { background: #10202c; padding: 0 10px; white-space: nowrap; }
+.plan-row input.plan-name { text-transform: none; font-family: inherit; }
+.plan-msg { font-size: 12px; color: var(--muted); min-height: 1em; margin-top: 4px; }
+.plan-msg.error { color: var(--danger); }
+.plans details { margin-top: 6px; }
+.plans summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--amber); padding: 4px 0; }
+#saved-list { list-style: none; margin: 0; padding: 0; max-height: 26vh; overflow: auto; }
+#saved-list li { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 12px; }
+.sp-name { color: #fff; font-weight: 600; word-break: break-word; }
+.sp-meta, .sp-empty { color: var(--muted); }
+.sp-btns { display: flex; gap: 6px; margin-top: 4px; }
+.sp-btns button { min-height: 32px; padding: 0 10px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(154,175,190,.35); background: #10202c; color: var(--ink); font-size: 12px; }
+.sp-btns button.danger { color: var(--danger); }
+#navlog { max-height: 34vh; overflow: auto; -webkit-overflow-scrolling: touch; }
+table.navlog { width: 100%; border-collapse: collapse; font-size: 11px; color: var(--ink); }
+table.navlog th { text-align: left; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: #0a1520; padding: 3px 3px; }
+table.navlog td { padding: 3px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; }
+table.navlog td small { display: block; color: var(--muted); font-size: 10px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.navlog .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.navlog tfoot td { color: var(--cyan); font-weight: 700; border-bottom: 0; }
+.nl-note, .nl-empty { font-size: 11px; color: var(--muted); margin: 4px 0; }
+#schematic { margin-top: 6px; max-height: 30vh; overflow: auto; }
+#schematic svg, #print-sheet svg { display: block; font-family: inherit; }
+.sc-leg { stroke: var(--amber); stroke-width: 2; }
+.sc-arrow { fill: var(--amber); }
+.sc-pt { fill: #09141d; stroke: var(--cyan); stroke-width: 2; }
+.sc-pt.sc-end { fill: var(--cyan); }
+.sc-code { fill: #fff; font-size: 12px; font-weight: 700; }
+.sc-name { fill: var(--muted); font-size: 10px; }
+.sc-lab { fill: var(--cyan); font-size: 10.5px; }
+#print-sheet { display: none; }
+
+@media print {
+  body > *:not(#print-sheet) { display: none !important; }
+  html, body { background: #fff !important; color: #000 !important; overflow: visible !important; height: auto !important; }
+  #print-sheet { display: block !important; padding: 12px; color: #000; font: 12px/1.4 -apple-system, Helvetica, Arial, sans-serif; }
+  #print-sheet h1 { font-size: 18px; margin: 0 0 4px; }
+  #print-sheet table.navlog { color: #000; font-size: 12px; }
+  #print-sheet table.navlog th { background: #eee; color: #000; }
+  #print-sheet table.navlog td { border-bottom: 1px solid #ccc; }
+  #print-sheet table.navlog td small { color: #444; max-width: none; white-space: normal; }
+  #print-sheet table.navlog tfoot td, #print-sheet .nl-note { color: #000; }
+  #print-sheet .print-sc { margin-top: 12px; max-width: 420px; }
+  #print-sheet .sc-leg { stroke: #000; } #print-sheet .sc-arrow { fill: #000; }
+  #print-sheet .sc-pt { fill: #fff; stroke: #000; } #print-sheet .sc-pt.sc-end { fill: #000; }
+  #print-sheet .sc-code { fill: #000; } #print-sheet .sc-name, #print-sheet .sc-lab { fill: #333; }
+}
