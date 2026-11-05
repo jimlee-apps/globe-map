@@ -48,7 +48,7 @@ async function boot() {
     container: "map",
     style: baseStyle(),
     center: [viewLng, 12],
-    zoom: 1.2,
+    zoom: 3.2,
     bearing: 0,
     pitch: 0,
     hash: true,
@@ -580,7 +580,7 @@ function centerOnTerminator(duration) {
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 900;
   state.map.easeTo({
     center: [lng, 12],
-    zoom: 1.2,
+    zoom: 3.2,
     bearing: 0,
     pitch: 0,
     duration: duration === undefined ? motion : duration,
