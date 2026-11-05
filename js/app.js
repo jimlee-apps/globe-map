@@ -71,15 +71,6 @@ async function boot() {
   map.on("load", async () => {
     try {
       map.setProjection({ type: "globe" });
-      map.setSky({
-        "sky-color": "#07111a",
-        "horizon-color": "#b7d0dc",
-        "fog-color": "#07111a",
-        "sky-horizon-blend": 0.55,
-        "horizon-fog-blend": 0.45,
-        "fog-ground-blend": 0.2,
-        "atmosphere-blend": 0.9,
-      });
       addGraticule(map);
       const [land, fir, labels, airports] = await Promise.all([
         loadJson("data/land.geojson"),
@@ -103,6 +94,7 @@ async function boot() {
       document.body.dataset.firs = String(fir.features.length);
       document.body.dataset.airports = String(airports.features.length);
       applyVisibility();
+      applyNightMode();
       bindMapClicks(map);
       addRouteLayers(map);
       bindPlanner();
@@ -493,10 +485,11 @@ function bindChrome() {
     applyPadding();
   });
   window.addEventListener("resize", () => applyPadding());
-  for (const id of ["tog-fir", "tog-labels", "tog-airports", "tog-night", "tog-grid"]) {
+  for (const id of ["tog-fir", "tog-labels", "tog-airports", "tog-nightmode", "tog-night", "tog-grid"]) {
     $(id).addEventListener("change", () => {
       savePrefs();
       applyVisibility();
+      if (id === "tog-nightmode") applyNightMode();
     });
   }
   $("btn-terminator").addEventListener("click", () => centerOnTerminator());
@@ -647,6 +640,7 @@ function restorePrefs() {
       ["tog-fir", "fir"],
       ["tog-labels", "labels"],
       ["tog-airports", "airports"],
+      ["tog-nightmode", "nightMode"],
       ["tog-night", "night"],
       ["tog-grid", "grid"],
     ]) {
@@ -662,6 +656,7 @@ function savePrefs() {
     fir: $("tog-fir").checked,
     labels: $("tog-labels").checked,
     airports: $("tog-airports").checked,
+    nightMode: $("tog-nightmode").checked,
     night: $("tog-night").checked,
     grid: $("tog-grid").checked,
   };
@@ -820,4 +815,51 @@ function fitRoute(coords, duration) {
 function clearRoute() {
   state.route = [];
   renderRoute(null);
+}
+
+const DAY_STYLE = {
+  background: "#0c3144",
+  land: { Africa: "#1c4a40", Europe: "#24584c", Asia: "#1a463e", "North America": "#1e5248", "South America": "#18483e", Oceania: "#1d4e44", Antarctica: "#243844", other: "#1b4a40" },
+  landLine: ["#3e7568", 0.85],
+  grid: ["#1d4d63", 0.8],
+  gridMajor: ["#2f6d84", 0.9],
+  nightFill: 0.55,
+  sky: { "sky-color": "#07111a", "horizon-color": "#b7d0dc", "fog-color": "#07111a", "sky-horizon-blend": 0.55, "horizon-fog-blend": 0.45, "fog-ground-blend": 0.2, "atmosphere-blend": 0.9 },
+};
+
+const NIGHT_STYLE = {
+  background: "#040b14",
+  land: { Africa: "#111c26", Europe: "#15222e", Asia: "#101a24", "North America": "#13202b", "South America": "#0f1a23", Oceania: "#121e29", Antarctica: "#1a2430", other: "#111c26" },
+  landLine: ["#4fa3c4", 0.4],
+  grid: ["#0d1f2e", 0.6],
+  gridMajor: ["#163247", 0.7],
+  nightFill: 0.62,
+  sky: { "sky-color": "#000206", "horizon-color": "#1f4a66", "fog-color": "#000206", "sky-horizon-blend": 0.35, "horizon-fog-blend": 0.3, "fog-ground-blend": 0.15, "atmosphere-blend": 0.6 },
+};
+
+function applyNightMode() {
+  const map = state.map;
+  const on = $("tog-nightmode").checked;
+  document.body.classList.toggle("night-mode", on);
+  if (!map) return;
+  const st = on ? NIGHT_STYLE : DAY_STYLE;
+  const set = (layer, prop, value) => {
+    if (map.getLayer(layer)) map.setPaintProperty(layer, prop, value);
+  };
+  set("background", "background-color", st.background);
+  const l = st.land;
+  set("land-fill", "fill-color", [
+    "match", ["get", "continent"],
+    "Africa", l.Africa, "Europe", l.Europe, "Asia", l.Asia,
+    "North America", l["North America"], "South America", l["South America"],
+    "Oceania", l.Oceania, "Antarctica", l.Antarctica, l.other,
+  ]);
+  set("land-line", "line-color", st.landLine[0]);
+  set("land-line", "line-opacity", st.landLine[1]);
+  set("graticule", "line-color", st.grid[0]);
+  set("graticule", "line-opacity", st.grid[1]);
+  set("graticule-major", "line-color", st.gridMajor[0]);
+  set("graticule-major", "line-opacity", st.gridMajor[1]);
+  set("night-fill", "fill-opacity", st.nightFill);
+  map.setSky(st.sky);
 }
