@@ -35,6 +35,18 @@
         <input id="q" name="q" autocomplete="off" enterkeyhint="search" placeholder="EGLL, Heathrow, EGTT…" spellcheck="false">
         <ul id="results" role="listbox" hidden></ul>
       </form>
+      <form id="plan-form" class="plan" aria-label="Flight planner">
+        <div class="plan-row">
+          <label class="sr" for="plan-from">From ICAO</label>
+          <input id="plan-from" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="From" aria-label="From ICAO">
+          <button type="button" id="plan-swap" title="Swap" aria-label="Swap From and To">⇄</button>
+          <label class="sr" for="plan-to">To ICAO</label>
+          <input id="plan-to" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="To" aria-label="To ICAO">
+          <button type="submit" id="plan-go">Plan</button>
+        </div>
+        <div id="plan-out" role="status" aria-live="polite"></div>
+        <button type="button" id="plan-clear" class="text-btn" hidden>Clear route</button>
+      </form>
       <div class="toggles">
         <label><input type="checkbox" id="tog-fir" checked> FIR boundaries</label>
         <label><input type="checkbox" id="tog-labels" checked> ICAO labels</label>

@@ -1,5 +1,5 @@
 /* GlobeMap shell cache. Network first, then cache. Same-origin only. */
-const CACHE = "globemap-shell-v2";
+const CACHE = "globemap-shell-v3";
 
 const SHELL = [
   "./",
@@ -10,6 +10,7 @@ const SHELL = [
   "./js/app.js",
   "./js/solar.js",
   "./js/terminator.js",
+  "./js/route.js",
   "./vendor/maplibre/maplibre-gl.css",
   "./vendor/maplibre/maplibre-gl.mjs",
   "./vendor/maplibre/maplibre-gl-worker.mjs",
