@@ -1,5 +1,5 @@
 /* GlobeMap shell cache. Network first, then cache. Same-origin only. */
-const CACHE = "globemap-shell-v7";
+const CACHE = "globemap-shell-v8";
 
 const SHELL = [
   "./",
