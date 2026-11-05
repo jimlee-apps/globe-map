@@ -60,6 +60,7 @@ async function boot() {
     fadeDuration: 0,
   });
   state.map = map;
+  window.__map = map; // debug handle for local testing
   map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
   map.on("error", (event) => {
     const message = event && event.error ? String(event.error.message || event.error) : "Map error";
@@ -404,12 +405,22 @@ function addAirports(map, airports) {
 
 function bindMapClicks(map) {
   map.on("click", (event) => {
-    const present = ["airport-dots-large", "airport-dots-medium", "fir-fill"].filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
+    const present = ["airport-dots-large", "airport-dots-medium", "airport-labels-large", "airport-labels-medium", "fir-fill"].filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
     if (!present.length) return;
-    const hits = map.queryRenderedFeatures(event.point, { layers: present });
+    const pad = 6; // small tap tolerance around dots/labels
+    const box = [[event.point.x - pad, event.point.y - pad], [event.point.x + pad, event.point.y + pad]];
+    const hits = map.queryRenderedFeatures(box, { layers: present });
     if (!hits.length) return;
-    const feature = hits[0];
+    // Prefer the airport whose marker is nearest the tap point.
+    const apts = hits.filter((h) => h.layer.id.startsWith("airport") && h.geometry.type === "Point");
+    const dist = (h) => { const q = map.project(h.geometry.coordinates); return (q.x - event.point.x) ** 2 + (q.y - event.point.y) ** 2; };
+    apts.sort((a, b) => dist(a) - dist(b));
+    const feature = apts[0] || hits[0];
     const props = feature.properties || {};
+    if (feature.layer.id.startsWith("airport") && $("tog-click").checked) {
+      addWaypoint(String(props.icao || "").toUpperCase());
+      return;
+    }
     const html = feature.layer.id.startsWith("airport")
       ? airportPopup(props)
       : firPopup(props);
@@ -419,9 +430,12 @@ function bindMapClicks(map) {
       .addTo(map);
   });
   map.on("mousemove", (event) => {
-    const present = ["airport-dots-large", "airport-dots-medium", "fir-fill"].filter((id) => map.getLayer(id));
-    const hits = present.length ? map.queryRenderedFeatures(event.point, { layers: present }) : [];
+    const present = ["airport-dots-large", "airport-dots-medium", "airport-labels-large", "airport-labels-medium"].filter((id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none");
+    const box = [[event.point.x - 6, event.point.y - 6], [event.point.x + 6, event.point.y + 6]];
+    const hits = present.length ? map.queryRenderedFeatures(box, { layers: present }) : [];
+    const code = hits.length ? String(hits[0].properties.icao || "") : "";
     map.getCanvas().style.cursor = hits.length ? "pointer" : "";
+    if (map.getLayer("airport-hover")) map.setFilter("airport-hover", ["==", ["get", "icao"], code]);
   });
 }
 
@@ -688,8 +702,10 @@ function esc(value) {
   }[char]));
 }
 
-/* ---------- From/To planner ---------- */
+/* ---------- Multi-sector planner ---------- */
 function addRouteLayers(map) {
+  map.addLayer({ id: "airport-hover", type: "circle", source: "airports", filter: ["==", ["get", "icao"], ""],
+    paint: { "circle-radius": 9, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": "#ffe08a", "circle-stroke-width": 2 } });
   map.addSource("route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   map.addLayer({ id: "route-casing", type: "line", source: "route", filter: ["==", ["geometry-type"], "LineString"],
     layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#03070c", "line-width": 6, "line-opacity": 0.7 } });
@@ -703,26 +719,27 @@ function addRouteLayers(map) {
     paint: { "text-color": "#ffffff", "text-halo-color": "#03070c", "text-halo-width": 2 } });
 }
 
+const MAX_WP = 12;
+
 function bindPlanner() {
-  for (const id of ["plan-from", "plan-to"]) {
-    $(id).addEventListener("input", (e) => {
-      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-      e.target.removeAttribute("aria-invalid");
-    });
-  }
-  $("plan-swap").addEventListener("click", () => {
-    const a = $("plan-from").value;
-    $("plan-from").value = $("plan-to").value;
-    $("plan-to").value = a;
+  state.route = [];
+  $("plan-add").addEventListener("input", (e) => {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    e.target.removeAttribute("aria-invalid");
   });
-  $("plan-form").addEventListener("submit", (e) => { e.preventDefault(); planRoute(); });
+  $("plan-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const code = $("plan-add").value.trim().toUpperCase();
+    if (addWaypoint(code)) $("plan-add").value = "";
+  });
+  $("plan-undo").addEventListener("click", () => { state.route.pop(); renderRoute(); });
   $("plan-clear").addEventListener("click", clearRoute);
   const qs = new URLSearchParams(location.search);
-  if (qs.get("from") && qs.get("to")) {
-    $("plan-from").value = qs.get("from").toUpperCase();
-    $("plan-to").value = qs.get("to").toUpperCase();
-    planRoute(0);
-  }
+  const via = qs.get("via") || (qs.get("from") && qs.get("to") ? `${qs.get("from")},${qs.get("to")}` : "");
+  if (via) {
+    for (const c of via.toUpperCase().split(/[,\s-]+/).filter(Boolean)) addWaypoint(c, 0, true);
+    renderRoute(0);
+  } else renderRoute();
 }
 
 function planOut(html, isError) {
@@ -731,38 +748,62 @@ function planOut(html, isError) {
   out.classList.toggle("error", !!isError);
 }
 
-function planRoute(duration) {
-  const codes = ["plan-from", "plan-to"].map((id) => $(id).value.trim().toUpperCase());
-  const ends = codes.map((c) => state.airports.get(c));
-  const bad = [];
-  ["plan-from", "plan-to"].forEach((id, i) => {
-    const miss = !ends[i];
-    $(id).setAttribute("aria-invalid", miss ? "true" : "false");
-    if (miss) bad.push(codes[i] ? `${codes[i]} not found` : `${i ? "To" : "From"} is empty`);
-  });
-  if (bad.length) {
-    planOut(`${esc(bad.join(" · "))}. Use a 4-letter ICAO code from the airport list.`, true);
-    document.body.dataset.route = "error";
-    return;
+function addWaypoint(code, duration, quiet) {
+  const apt = state.airports.get(code);
+  if (!code) { planOut("Type a 4-letter ICAO code, or click an airport.", true); return false; }
+  if (!apt) {
+    $("plan-add").setAttribute("aria-invalid", "true");
+    planOut(`${esc(code)} not found. Use a 4-letter ICAO code from the airport list.`, true);
+    document.body.dataset.routeError = code;
+    return false;
   }
-  if (codes[0] === codes[1]) {
-    planOut("From and To are the same airport.", true);
-    document.body.dataset.route = "error";
-    return;
+  delete document.body.dataset.routeError;
+  const last = state.route[state.route.length - 1];
+  if (last && last.code === apt.code) { if (!quiet) renderRoute(null); return false; }
+  if (state.route.length >= MAX_WP) { planOut(`Route is limited to ${MAX_WP} airports.`, true); return false; }
+  state.route.push(apt);
+  if (!quiet) renderRoute(duration);
+  return true;
+}
+
+function renderRoute(duration) {
+  const pts = state.route;
+  const features = [];
+  const legs = [];
+  let all = [];
+  let offset = 0; // keep longitudes continuous across sectors
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const gc = greatCircle([a.lng, a.lat], [b.lng, b.lat]);
+    let coords = gc.coordinates;
+    if (all.length) {
+      const prevLng = all[all.length - 1][0];
+      const k = Math.round((prevLng - coords[0][0]) / 360) * 360;
+      coords = coords.map(([x, y]) => [x + k, y]);
+    }
+    all = all.concat(coords);
+    features.push(lineFeature(coords, { kind: "route", leg: i }));
+    legs.push({ a, b, nm: Math.round(gc.meters / 1852), m: gc.meters });
   }
-  const [a, b] = ends;
-  const gc = greatCircle([a.lng, a.lat], [b.lng, b.lat]);
-  const nm = Math.round(gc.meters / 1852);
-  state.map.getSource("route").setData({ type: "FeatureCollection", features: [
-    lineFeature(gc.coordinates, { kind: "route" }),
-    { type: "Feature", properties: { label: a.code }, geometry: { type: "Point", coordinates: [a.lng, a.lat] } },
-    { type: "Feature", properties: { label: b.code }, geometry: { type: "Point", coordinates: [b.lng, b.lat] } },
-  ] });
-  planOut(`${esc(a.code)} → ${esc(b.code)} &nbsp;<strong>${nm.toLocaleString()} NM</strong><br>${esc(a.name)} → ${esc(b.name)}<br>Great circle`);
-  $("plan-clear").hidden = false;
-  document.body.dataset.route = `${a.code}-${b.code}`;
-  document.body.dataset.routeNm = String(nm);
-  fitRoute(gc.coordinates, duration);
+  pts.forEach((p, i) => features.push({ type: "Feature", properties: { label: p.code, idx: i },
+    geometry: { type: "Point", coordinates: [p.lng, p.lat] } }));
+  state.map.getSource("route").setData({ type: "FeatureCollection", features });
+  const totalNm = Math.round(legs.reduce((s, l) => s + l.m, 0) / 1852);
+  if (!pts.length) {
+    planOut("Click airports on the globe or type ICAO codes to build a route.");
+  } else {
+    const chain = pts.map((p) => esc(p.code)).join(" → ");
+    const rows = legs.map((l, i) => `<li><span>${i + 1}. ${esc(l.a.code)} → ${esc(l.b.code)}</span><b>${l.nm.toLocaleString()} NM</b></li>`).join("");
+    const hint = pts.length === 1 ? `<br>Departure ${esc(pts[0].name)}. Add the next airport.` : "";
+    planOut(`<div class="chain">${chain}</div>${rows ? `<ol class="legs">${rows}</ol><div class="total">Total <strong>${totalNm.toLocaleString()} NM</strong> · ${legs.length} sector${legs.length > 1 ? "s" : ""} · great circle</div>` : ""}${hint}`);
+  }
+  $("plan-clear").hidden = !pts.length;
+  $("plan-undo").disabled = !pts.length;
+  document.body.dataset.route = pts.map((p) => p.code).join("-");
+  document.body.dataset.routeNm = String(totalNm);
+  document.body.dataset.legsNm = legs.map((l) => l.nm).join(",");
+  if (duration !== null && all.length) fitRoute(all, duration);
+  else if (duration !== null && pts.length === 1 && duration === 0) fitRoute([[pts[0].lng, pts[0].lat]], 0);
 }
 
 function fitRoute(coords, duration) {
@@ -780,8 +821,6 @@ function fitRoute(coords, duration) {
 }
 
 function clearRoute() {
-  state.map.getSource("route").setData({ type: "FeatureCollection", features: [] });
-  planOut("");
-  $("plan-clear").hidden = true;
-  delete document.body.dataset.route;
+  state.route = [];
+  renderRoute(null);
 }
