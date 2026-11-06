@@ -497,10 +497,12 @@ function bindChrome() {
   $("credits-close").addEventListener("click", () => $("credits").close());
   $("search-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    const hits = search($("q").value);
-    if (hits[0]) goTo(hits[0]);
+    pickFromQuery($("q").value);
   });
-  $("q").addEventListener("input", () => renderResults(search($("q").value)));
+  $("q").addEventListener("input", () => {
+    $("q").removeAttribute("aria-invalid");
+    renderResults(search($("q").value));
+  });
   $("q").addEventListener("keydown", (event) => {
     const buttons = [...$("results").querySelectorAll("button")];
     const current = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
@@ -554,11 +556,41 @@ function renderResults(hits) {
     button.setAttribute("aria-selected", index === 0 ? "true" : "false");
     button.innerHTML = `<span class="result-code">${esc(item.code)}</span> ${esc(item.name)}<span class="result-name">${esc(item.detail)}</span>`;
     button.addEventListener("mousedown", (event) => event.preventDefault());
-    button.addEventListener("click", () => goTo(item));
+    button.addEventListener("click", () => pickSearch(item));
     li.append(button);
     list.append(li);
   });
   list.hidden = false;
+}
+
+function pickFromQuery(raw) {
+  const query = raw.trim().toUpperCase();
+  if (!query) return;
+  if (state.airports.has(query)) {
+    addWaypoint(query);
+    $("q").value = "";
+    $("q").removeAttribute("aria-invalid");
+    $("results").hidden = true;
+    return;
+  }
+  const hits = search(raw);
+  if (hits[0]) pickSearch(hits[0]);
+  else {
+    $("q").setAttribute("aria-invalid", "true");
+    planOut(`${esc(query)} not found. Search an airport name, FIR, or 4-letter ICAO.`, true);
+  }
+}
+
+function pickSearch(item) {
+  $("results").hidden = true;
+  if (item.kind === "airport") {
+    addWaypoint(item.code);
+    $("q").value = "";
+    $("q").removeAttribute("aria-invalid");
+    return;
+  }
+  $("q").value = item.code;
+  goTo(item);
 }
 
 function goTo(item) {
@@ -567,7 +599,7 @@ function goTo(item) {
   const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1200;
   state.map.flyTo({
     center: [item.lng, item.lat],
-    zoom: Math.max(state.map.getZoom(), item.zoom),
+    zoom: Math.max(state.map.getZoom(), item.zoom || 4.4),
     duration,
     essential: true,
   });
@@ -716,16 +748,14 @@ function addRouteLayers(map) {
 
 function bindPlanner() {
   state.route = [];
-  $("plan-add").addEventListener("input", (e) => {
-    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    e.target.removeAttribute("aria-invalid");
+  $("plan-out").addEventListener("click", (e) => {
+    const chip = e.target.closest("button.chip");
+    if (!chip) return;
+    const i = Number(chip.dataset.i);
+    if (!Number.isInteger(i) || i < 0 || i >= state.route.length) return;
+    state.route.splice(i, 1);
+    renderRoute(null);
   });
-  $("plan-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const code = $("plan-add").value.trim().toUpperCase();
-    if (addWaypoint(code)) $("plan-add").value = "";
-  });
-  $("plan-undo").addEventListener("click", () => { state.route.pop(); renderRoute(); });
   $("plan-clear").addEventListener("click", clearRoute);
   const qs = new URLSearchParams(location.search);
   const via = qs.get("via") || (qs.get("from") && qs.get("to") ? `${qs.get("from")},${qs.get("to")}` : "");
@@ -869,10 +899,10 @@ function planOut(html, isError) {
 
 function addWaypoint(code, duration, quiet) {
   const apt = state.airports.get(code);
-  if (!code) { planOut("Type a 4-letter ICAO code, or click an airport.", true); return false; }
+  if (!code) { planOut("Search or click an airport to build a route.", true); return false; }
   if (!apt) {
-    $("plan-add").setAttribute("aria-invalid", "true");
-    planOut(`${esc(code)} not found. Use a 4-letter ICAO code from the airport list.`, true);
+    $("q").setAttribute("aria-invalid", "true");
+    planOut(`${esc(code)} not found. Search an airport name or 4-letter ICAO.`, true);
     document.body.dataset.routeError = code;
     return false;
   }
@@ -908,15 +938,14 @@ function renderRoute(duration) {
   state.map.getSource("route").setData({ type: "FeatureCollection", features });
   const totalNm = Math.round(legs.reduce((s, l) => s + l.m, 0) / 1852);
   if (!pts.length) {
-    planOut("Click airports on the globe or type ICAO codes to build a route.");
+    planOut("Search or click airports to build a route.");
   } else {
-    const chain = pts.map((p) => esc(p.code)).join(" → ");
-    const rows = legs.map((l, i) => `<li><span>${i + 1}. ${esc(l.a.code)} → ${esc(l.b.code)}</span><b>${l.nm.toLocaleString()} NM</b></li>`).join("");
-    const hint = pts.length === 1 ? `<br>Departure ${esc(pts[0].name)}. Add the next airport.` : "";
-    planOut(`<div class="chain">${chain}</div>${rows ? `<ol class="legs">${rows}</ol><div class="total">Total <strong>${totalNm.toLocaleString()} NM</strong> · ${legs.length} sector${legs.length > 1 ? "s" : ""} · great circle</div>` : ""}${hint}`);
+    const chips = pts.map((p, i) => `<button type="button" class="chip" data-i="${i}" aria-label="Remove ${esc(p.code)} from route">${esc(p.code)} <span aria-hidden="true">×</span></button>`).join("");
+    const hint = pts.length === 1 ? `<div class="hint">${esc(pts[0].name)}. Add the next airport.</div>` : "";
+    const total = legs.length ? `<div class="total"><strong>${totalNm.toLocaleString()} NM</strong> · ${legs.length} sector${legs.length > 1 ? "s" : ""}</div>` : "";
+    planOut(`<div class="chips">${chips}</div>${total}${hint}`);
   }
   $("plan-clear").hidden = !pts.length;
-  $("plan-undo").disabled = !pts.length;
   document.body.dataset.route = pts.map((p) => p.code).join("-");
   document.body.dataset.routeNm = String(totalNm);
   document.body.dataset.legsNm = legs.map((l) => l.nm).join(",");
